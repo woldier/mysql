@@ -616,6 +616,283 @@ SELECT * from emp where age>40;
 
 SELECT a.*,d.`name` from (SELECT * from emp where age>40) a LEFT JOIN dept d on a.dept_id = d.id;
 -- 5.查询所有员工的工资等级
+select a.`name` , b.grade  from emp a , salgrade b where (a.salary between b.losal and b.hisal);
+-- 6.查询'研发部'所有员工所有信息及工资等级
+
+select e.* from emp e,dept d where e.dept_id = d.id and d.`name`='研发部' 
+
+SELECT a.*,b.grade '等级' FROM (select e.* from emp e,dept d where e.dept_id = d.id and d.`name`='研发部' ) a, salgrade b where (a.salary between b.losal and b.hisal);
+-- 7.查询'研发部'员工的平均工资
+SELECT AVG(e.salary) '工资' from emp e ,dept d where e.dept_id = d.id and d.`name` = '研发部'
+-- 8.查询工资比 灭绝 高的员工信息
+select * from emp where salary > (SELECT salary from emp where `name`='灭绝');
+-- 9.查询比平均薪资高的员工信息
+select * from emp where salary >(SELECT avg(salary) from emp);
+
+-- 10.查询低于本部门平均薪资的员工人数
+SELECT dept_id,avg(salary) 'salary' from emp  GROUP BY dept_id;
+
+SELECT a.* from emp a, (SELECT dept_id,avg(salary) 'salary' from emp  GROUP BY dept_id) b where a.dept_id = b.dept_id and a.salary<b.salary
+
+-- 11.查询所有的部门信息,并且统计部门员工人数
+SELECT a.*,d.`name` from (SELECT dept_id,count(*) '人数' from emp GROUP BY dept_id) a left JOIN dept d on a.dept_id = d.id;
+```
+
+
+
+###  1.6 事务
+
+#### 1.6.1 事务简介
+
+![image-20221013092127902](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013092127902.png)
+
+#### 1.6.2 事务操作
+
+- 数据准备
+
+```sql
+-- ---------------------------- 事务操作 ----------------------------
+-- 数据准备
+create table account(
+    id int auto_increment primary key comment '主键ID',
+    name varchar(10) comment '姓名',
+    money int comment '余额'
+) comment '账户表';
+insert into account(id, name, money) VALUES (null,'张三',2000),(null,'李四',2000);
+
+-- 恢复数据
+update account set money = 2000 where name = '张三' or name = '李四';
+```
+
+```sql
+
+-- 转账操作 (张三给李四转账1000)
+-- 1. 查询张三账户余额
+select * from account where name = '张三';
+
+-- 2. 将张三账户余额-1000
+update account set money = money - 1000 where name = '张三';
+
+模拟程序执行报错 ...
+
+-- 3. 将李四账户余额+1000
+update account set money = money + 1000 where name = '李四';
 
 ```
+
+![image-20221013093013651](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013093013651.png)
+
+![image-20221013093350269](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013093350269.png)
+
+
+
+
+
+#### 1.6.3 事务四大特性
+
+![image-20221013093611347](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013093611347.png)
+
+
+
+#### 1.6.4 并发事务问题
+
+![image-20221013094004001](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013094004001.png)
+
+ ![image-20221013094233650](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013094233650.png)
+
+这三个问题的讲解可以参考下https://www.bilibili.com/video/BV1Kr4y1i7ru/?p=54&spm_id_from=pageDriver&vd_source=b592fd0fd3bd041bab6398e89668385d
+
+#### 1.6.5 事务隔离级别
+
+![image-20221013094459967](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013094459967.png)
+
+隔离级别的设置
+
+![image-20221013094540836](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013094540836.png)
+
+```sql
+select @@TRANSACTION_ISOLATION;
+
+set session transaction isolation level serializable;
+```
+
+https://www.bilibili.com/video/BV1Kr4y1i7ru/?p=55&spm_id_from=pageDriver&vd_source=b592fd0fd3bd041bab6398e89668385d
+
+##  2. 进阶篇
+
+###  2.1 存储引擎
+
+####  2.1.1 MySQL体系结构 
+
+![image-20221013100913948](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013100913948.png)
+
+
+
+
+
+#### 2.1.2 存储引擎简介
+
+![image-20221013101044099](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013101044099.png)
+
+```sql
+-- 查看存储引擎
+show create table account;
+```
+
+- 在创建表时指定存储引擎
+
+```sql
+create table account(
+	字段1 字段1类型 
+) ENGINE = INNODB;
+```
+
+
+
+- 查看当前数据库所支持的存储引擎
+
+```sql
+show engines ;
+```
+
+![image-20221013101342823](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013101342823.png)
+
+
+
+#### 2.1.3 存储引擎特点
+
+- InnoDB
+
+![image-20221013101733840](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013101733840.png)
+
+参数innodb_file_per_table 表示使用innoDB的table是否公用一个xxx.idb文件
+
+```sql
+show variables  innodb_file_per_table;
+```
+
+可以通过命令行`ibd2sdi xxx.idb` 查看sdi信息
+
+![image-20221013102001476](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013102001476.png)
+
+![image-20221013102929782](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013102929782.png)
+
+- MyISAM
+
+![image-20221013103015710](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013103015710.png)
+
+- Memory
+
+![image-20221013103214030](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013103214030.png)
+
+
+
+- 存储引擎的特点
+
+![image-20221013103250265](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013103250265.png)
+
+#### 2.1.4 存储引擎选择
+
+- 存储引擎的选择
+
+![image-20221013103514278](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013103514278.png)
+
+
+
+###  2.2 索引
+
+ 
+
+####  2.2.1 索引概述
+
+![image-20221013105545152](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013105545152.png)
+
+- 演示(无索引与有索引)
+
+![image-20221013105731805](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013105731805.png)
+
+无索引时就算匹配到了结果一会进行全表扫描
+
+- 索引的优缺点
+
+![image-20221013105937803](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013105937803.png)
+
+
+
+#### 2.2.2 索引结构
+
+mysql的索引是在存储引擎层实现的,不同的存储引擎有不同的结构,主要包含以下几种
+
+![image-20221013110144844](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013110144844.png)
+
+
+
+![image-20221013110211033](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013110211033.png)
+
+注:平常所说的索引,如果没有特别指明,都是b+树索引.
+
+#####  2.2.2.1 BTree
+
+![image-20221013110536585](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013110536585.png)
+
+##### 2.2.2.2 BTree(多路平衡查找树)
+
+![image-20221013110716364](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013110716364.png)
+
+数据结构可视化网站:
+https://www.cs.usfca.edu/~galles/visualization/Algorithms.html
+
+##### 2.2.2.3 B+Tree 
+
+![image-20221013111423463](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013111423463.png)
+
+mysql中的B+树
+
+![image-20221013111549959](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013111549959.png)
+
+
+
+##### 2.2.2.4 hash
+
+![image-20221013111939582](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013111939582.png)
+
+特点
+
+![image-20221013112007366](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013112007366.png)
+
+![image-20221013112031885](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013112031885.png)
+
+##### 2.2.2.5 思考
+
+![image-20221013112354201](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013112354201.png)
+
+
+
+#### 2.2.3 索引分类
+
+![image-20221013112507292](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013112507292.png)
+
+ 在innoDB存储引擎中,根据索引的存储形式,又可以分为一下两种:
+
+![image-20221013112641053](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013112641053.png)
+
+聚集索引的选取规则:
+
+![image-20221013112811812](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013112811812.png)
+
+
+
+![image-20221013112956114](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013112956114.png)
+
+#### 2.2.4 索引语法
+
+
+
+
+
+#### 2.2.5 SQL性能分析
+
+#### 2.2.6 索引使用
+
+#### 2.2.7 索引设计原则
 
