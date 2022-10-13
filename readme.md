@@ -1,5 +1,3 @@
-# mysql初级
-
 面试题预览
 
 ![image-20221012094908001](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221012094908001.png)
@@ -884,15 +882,449 @@ mysql中的B+树
 
 ![image-20221013112956114](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013112956114.png)
 
+
+
+- 思考
+
+  ![image-20221013145055302](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013145055302.png)
+
+![image-20221013145457746](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013145457746.png)
+
 #### 2.2.4 索引语法
 
+![image-20221013145614681](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013145614681.png)
 
+
+
+- 案例
+
+![image-20221013145738639](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013145738639.png)
+
+```sql
+-- 数据准备
+
+create table tb_user(
+	id int primary key auto_increment comment '主键',
+	name varchar(50) not null comment '用户名',
+	phone varchar(11) not null comment '手机号',
+	email varchar(100) comment '邮箱',
+	profession varchar(11) comment '专业',
+	age tinyint unsigned comment '年龄',
+	gender char(1) comment '性别 , 1: 男, 2: 女',
+	status char(1) comment '状态',
+	createtime datetime comment '创建时间'
+) comment '系统用户表';
+
+
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('吕布', '17799990000', 'lvbu666@163.com', '软件工程', 23, '1', '6', '2001-02-02 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('曹操', '17799990001', 'caocao666@qq.com', '通讯工程', 33, '1', '0', '2001-03-05 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('赵云', '17799990002', '17799990@139.com', '英语', 34, '1', '2', '2002-03-02 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('孙悟空', '17799990003', '17799990@sina.com', '工程造价', 54, '1', '0', '2001-07-02 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('花木兰', '17799990004', '19980729@sina.com', '软件工程', 23, '2', '1', '2001-04-22 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('大乔', '17799990005', 'daqiao666@sina.com', '舞蹈', 22, '2', '0', '2001-02-07 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('露娜', '17799990006', 'luna_love@sina.com', '应用数学', 24, '2', '0', '2001-02-08 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('程咬金', '17799990007', 'chengyaojin@163.com', '化工', 38, '1', '5', '2001-05-23 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('项羽', '17799990008', 'xiaoyu666@qq.com', '金属材料', 43, '1', '0', '2001-09-18 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('白起', '17799990009', 'baiqi666@sina.com', '机械工程及其自动化', 27, '1', '2', '2001-08-16 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('韩信', '17799990010', 'hanxin520@163.com', '无机非金属材料工程', 27, '1', '0', '2001-06-12 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('荆轲', '17799990011', 'jingke123@163.com', '会计', 29, '1', '0', '2001-05-11 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('兰陵王', '17799990012', 'lanlinwang666@126.com', '工程造价', 44, '1', '1', '2001-04-09 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('狂铁', '17799990013', 'kuangtie@sina.com', '应用数学', 43, '1', '2', '2001-04-10 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('貂蝉', '17799990014', '84958948374@qq.com', '软件工程', 40, '2', '3', '2001-02-12 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('妲己', '17799990015', '2783238293@qq.com', '软件工程', 31, '2', '0', '2001-01-30 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('芈月', '17799990016', 'xiaomin2001@sina.com', '工业经济', 35, '2', '0', '2000-05-03 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('嬴政', '17799990017', '8839434342@qq.com', '化工', 38, '1', '1', '2001-08-08 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('狄仁杰', '17799990018', 'jujiamlm8166@163.com', '国际贸易', 30, '1', '0', '2007-03-12 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('安琪拉', '17799990019', 'jdodm1h@126.com', '城市规划', 51, '2', '0', '2001-08-15 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('典韦', '17799990020', 'ycaunanjian@163.com', '城市规划', 52, '1', '2', '2000-04-12 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('廉颇', '17799990021', 'lianpo321@126.com', '土木工程', 19, '1', '3', '2002-07-18 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('后羿', '17799990022', 'altycj2000@139.com', '城市园林', 20, '1', '0', '2002-03-10 00:00:00');
+INSERT INTO itcast.tb_user (name, phone, email, profession, age, gender, status, createtime) VALUES ('姜子牙', '17799990023', '37483844@qq.com', '工程造价', 29, '1', '4', '2003-05-26 00:00:00');
+```
+
+
+
+```sql
+-- 查看当前存在的索引
+show index from tb_user;
+
+-- 1.name字段为姓名字段,该字段的值可能会重复,为该字段创建索引
+-- 新建索引 为tb_user表的name字段创建名为idx_user_name的索引
+create index idx_user_name on tb_user (name);
+
+-- 2.2phone手机号字段的值,非空,且唯一,为该字段创建唯一索引
+create unique index idx_user_phone on tb_user (phone);
+-- 3.为profession,age,status创建联合索引(在创建索引时,这些索引键的先后顺序需要注意的-->后面章节会详细讲述)
+
+create index idx_user_pro_age_sta on tb_user (profession,age,status);
+
+
+-- 4.为email建立合适的索引来提升查询效率
+create index idx_user_email on tb_user(email);
+
+
+-- 5.删除索引
+drop index idx_user_email on tb_user;
+```
+
+![image-20221013152248196](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013152248196.png)
 
 
 
 #### 2.2.5 SQL性能分析
 
-#### 2.2.6 索引使用
+- sql执行频率
+
+```sql
+show global status like 'Com_______'; -- Com后面七个下划线
+```
+
+![image-20221013153204977](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013153204977.png)
+
+
+
+#####  2.2.5.1 慢查询日志
+
+![image-20221013153348177](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013153348177.png)
+
+```sql
+show variables like 'slow_query_log';
+```
+
+![image-20221013153526525](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013153526525.png)
+
+```properties
+## 开启mysql蛮日志查询开关
+show_query_log = 1;
+## 设置慢日志的时间为2秒,sql语句执行时间超过2秒,就会是为慢查询,记录慢查询日志
+long_query_time = 2;
+```
+
+
+
+![image-20221013160739169](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013160739169.png)
+
+
+
+配置完毕后,通过以下质量重新启动mysql服务器进行测试,查看慢日志文件中记录的信息
+
+`/var/lib/mysql/localhost-slow.log`
+
+对于docker下的mysql推荐使用如下方法
+
+```sql
+set global slow_query_log='ON'; 
+
+set global slow_query_log_file='/var/lib/mysql/data/slow.log';
+--如果设置不了也可以直接查看保存位置
+show variables like 'slow_query_log_file';
+
+set global long_query_time=1;
+```
+
+##### 2.2.5.2 profile详情
+
+show profiles能够在做sql优化时帮助我们了解时间都小号到哪里去了.通过have_profiling参数,能够看到当前mysql是否支持profile操作:
+
+```sql
+SELECT @@have_profiling;
+```
+
+默认profileing是关闭的,可以通过set语句在session/global级别开启profiling:
+
+```sql
+set profiling=1;
+```
+
+
+
+执行一系列的业务sql的操作,然后通过如下指令查看指令的执行耗时:
+
+```sql
+show profiles;
+-- 通过show profiles 获取想要查看的id
+show profile from query query_id;
+
+show profile cpu for query query_id;
+```
+
+
+
+##### 2.2.5.3 explain执行计划
+
+ ![image-20221013171553561](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013171553561.png)
+
+![image-20221013172612192](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013172612192.png)
+
+![image-20221013172653189](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013172653189.png)
+
+#### 2.2.6 索引使用规则
+
+- 验证索引效率
+
+![image-20221013173044588](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013173044588.png)
+
+#####  2.2.6.1 最左前缀法则
+
+现在有如下索引
+
+![image-20221013173459283](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013173459283.png)
+
+![image-20221013173332270](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013173332270.png)
+
+情况一查询profession,age,status索引有效
+
+![image-20221013173605303](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013173605303.png)
+
+情况二查询profession,age并没有跳过中间列,索引有效
+
+![image-20221013173832513](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013173832513.png)
+
+情况三查询profession,索引有效
+
+![image-20221013173925867](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013173925867.png)
+
+情况四查询age与status,索引失效,启用了全表扫描
+
+![image-20221013174054703](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013174054703.png)
+
+
+
+情况五查询status,索引失效
+
+![image-20221013174131324](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013174131324.png)
+
+情况六查询profession与status,索引有效,但是观察这里的key_len与情况三相同,说明status并未走索引,为单索引
+
+![image-20221013174321939](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013174321939.png)
+
+ 
+
+情况六,若调换三个参数的位置是否能走索引呢
+
+![image-20221013190732016](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013190732016.png)
+
+可以发现key_len为54说明三个字段都用上了,这表明最左原则要求字段存在,但不是要求必须在sql语句的最左.
+
+
+
+##### 2.2.6.2 范围查询
+
+联合索引中,出现范围查询(>,<),范围查询*右侧*的列索引失效.
+
+![image-20221013191106895](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013191106895.png)
+
+![image-20221013191126441](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013191126441.png)
+
+![image-20221013191133730](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013191133730.png)
+
+##### 2.2.6.3 索引失效
+
+- 索引列运算
+
+不要在索引列上进行运算操作,索引会失效.
+
+```sql
+explain select * from tb_user where substring(phone,10,2) = '15';
+```
+
+![image-20221013191916920](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013191916920.png)
+
+![image-20221013191948281](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013191948281.png)
+
+- 字符串不加引号
+
+单索引时
+
+![image-20221013192149747](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013192149747.png)
+
+多索引时
+
+![image-20221013192228727](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013192228727.png)
+
+![image-20221013192239841](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013192239841.png)
+
+- 模糊查询
+
+如果仅仅是尾部模糊匹配,索引不会失效,如果是头部模糊匹配,索引失效.
+
+- or连接的条件
+
+用or分隔开的条件,如果or前的条件中的列有索引,而后面的列中没有索引,那么涉及到的索引不会被用到.
+
+这里id有索引而age没有索引
+
+![image-20221013193051398](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013193051398.png)
+
+如果要使用索引的话可以给age也加入索引
+
+- 数据分布影响
+
+如果mysql评估使用索引比全表更慢,则不使用索引
+
+ 核心就是,如果通过索引过滤出来的数据是极少的数据就会走索引,否则全表扫描![image-20221013193606531](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013193606531.png)
+
+![image-20221013193623278](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013193623278.png)
+
+#####  2.2.6.4 sql提示
+
+当某一字段同时存在联合索引和单列索引他会怎么选择呢?
+
+![image-20221013194152983](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013194152983.png)
+
+可以看到他选择是的联合索引,这是有innodb决定的.
+
+那我们可以手动选择使用哪个索引吗?
+
+- sql提示
+
+sql提示,是优化数据库的一个重要手段,简单来说,就是在sql语句中加入一些认为的提示来达到优化操作的目的.
+
+```sql
+-- user index
+explain select * from tb_user user index(inx_user_pro) where profession = '软件工程';
+
+-- ignore index
+explain select * from tb_user ignore index(inx_user_pro) where profession = '软件工程';
+
+-- force index 强制使用
+explain select * from tb_user force index(inx_user_pro) where profession = '软件工程';
+
+```
+
+#####  2.2.6.5 覆盖索引&回表查询
+
+- 覆盖索引
+
+尽量使用覆盖索引(查询使用了索引,并且需要返回的列,在该索引中已经全部能够找到),减少select 
+
+
+
+![image-20221013195428613](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013195428613.png)
+
+![image-20221013195453196](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013195453196.png)
+
+![image-20221013195501596](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013195501596.png)
+
+
+
+分析:
+
+- 不需要回表的情况
+
+![image-20221013195630575](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013195630575.png)
+
+叶子节点有全部信息
+
+- 覆盖索引的情况(这里只需要查询id与name,辅助索引里面全有,不需要回表)
+
+![image-20221013195750191](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013195750191.png)
+
+-    需要回表
+
+包含了gender字段,此字段在辅助索引中不存在,因此需要查询聚集索引
+
+![image-20221013195924725](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013195924725.png)
+
+所以要避免使用select* 这样很容易出现回表查询.
+
+- 思考
+
+![image-20221013200244110](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013200244110.png)
+
+
+
+解决方案是为username与password建立联合索引,这样性能比单独给user'name建立索引的性能好
+
+#####  2.2.6.6 前缀索引
+
+  当字段类型为字符串(varchar,text等)时,有时候需要索引很长的字符串,这会让索引变得很大,查询时,浪费大量的磁盘IO,影响查询效率.此时可以只将字符串的一部分前缀,建立索引,这样可以大大节约索引空间,从而提高索引效率.
+
+```sql
+-- 语法规则
+
+create index idx_xxxx on table_name(column(n))
+
+-- eg
+create index inx_user_phone on tb_user(phone(6))
+
+
+```
+
+- 前缀长度
+
+可以根据索引的选择性来决定,而选择性是指不重复的索引值(基数)和数据表的记录总数的比值,索引选择性越高则查询效率越高.唯一索引的选择性是1,这是最好的索引选择性,性能也是最好的.
+
+公式:
+
+```sql
+select count(distinct email)/count(*) from tb_user;
+
+select count(distinct substring(email,1,5))/count(*) from tb_user;
+```
+
+- 前缀索引查询流程
+
+![image-20221013202006235](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013202006235.png)
+
+若id=1如出来的数据不匹配则会取出lvbu6链表的下一个其对应的id,并取出id对应的email,若匹配则查询成功返回.
+
+##### 2.2.6.7 单列&联合索引
+
+![image-20221013202614417](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013202614417.png)
+
+- 联合索引情况
+
+根据创建的索引会先对phone进行排序phone相同再对name进行排序 ![image-20221013202702237](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013202702237.png)
 
 #### 2.2.7 索引设计原则
 
+ ![image-20221013204005921](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013204005921.png)
+
+
+
+###  2.3  SQL优化
+
+####  2.3.1 插入数据
+
+- insert优化
+
+![image-20221013205145732](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013205145732.png)
+
+- 大批量插入数据
+
+![image-20221013205221681](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221013205221681.png)
+
+
+
+```shell
+#客户端连接服务端时,加上参数 --local-infile
+mysql --local-infile -u root -p
+```
+
+设置全局参数local_infile为1,开启从本地加载文件导入数据的开关
+
+```sql
+set global local_infile=1
+
+
+-- 执行load命令将准备好的数据,加载到表结构中 该文件格式如上左图所示
+
+load data local infile '/root/sql1.sql' in to table 'tb_user' fields terminated by ',' lines terminated by '\n';
+```
+
+####  2.3.2 主键优化
+
+
+
+
+
+#### 2.3.3
+
+#### 2.3.4 
+
+#### 2.3.5 
+
+#### 2.3.6 
+
+#### 2.3.7  
