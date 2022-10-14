@@ -1,4 +1,4 @@
-面试题预览
+-面试题预览
 
 ![image-20221012094908001](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221012094908001.png)
 
@@ -1315,16 +1315,957 @@ load data local infile '/root/sql1.sql' in to table 'tb_user' fields terminated 
 
 ####  2.3.2 主键优化
 
+- 数据组织方式
+
+再InnoDB存储引擎中,表数据都是根据主键顺序组织存放的,这种存储方式的表称为索引组织表(index organized table IOT) 
+
+![image-20221014084150378](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014084150378.png)
+
+- 页分裂
+
+页可以为空,也剋填充一半,也可以填充100%.每个页包含了2-N行数据(如果一行数据过大,会溢出),根据主键排列.
+
+主键顺序插入:
+
+![image-20221014084507803](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014084507803.png)
+
+主键乱序插入:
+
+![image-20221014084620878](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014084620878.png)
+
+![image-20221014084636744](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014084636744.png)
+
+该插入page1但是page1已经满了,于是需要进行页分裂
+
+于是找到page1一半的位置,将后半段移动到新的page中,并且将新page插入page1与page2之间
+
+![image-20221014084923120](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014084923120.png)
+
+![image-20221014084958025](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014084958025.png)
+
+![image-20221014085121670](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014085121670.png)
+
+- 页合并
+
+当删除一行记录时,实际上记录并未被物理删除,只是记录被标记(flaged)为删除并且它的空间变得运行其他记录声明使用
+
+当页中删除的记录达到了MERGE_THRESHOLD(默认为页的50%,可在创建表或者索引时指定),InnoDB会开始寻找最靠近的页(前或后)看看是否可以将合并以优化空间
+
+![image-20221014085642766](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014085642766.png)
+
+![image-20221014085658259](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014085658259.png)
+
+- 主键设计原则
+
+![image-20221014085905204](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014085905204.png)
+
+
+
+#### 2.3.3 order by优化
+
+1. Using filesort:通过表的索引或全表扫描,读取满足条件的数据行,然后在缓冲区sort buffer中完成排序操作,所有不是通过索引直接返回排序结果的排序都叫FileSort排序.
+2. Using index:通过有序索引顺序扫描直接返回有序数据,这种情况即为using index,不需要额外排序,操作效率高.
+
+- 没有建立索引时
+
+`explain selectid,age,phone from tb_user order by age,phone`
+
+![image-20221014091425228](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014091425228.png)
+
+- 建立age与phone索引后
+
+```sql
+create index inx_user_age_phone on tb_user(age,phone);
+```
+
+![image-20221014091638658](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014091638658.png)
+
+再次进行排序
+
+```sql
+explain select id,age,phone from tb_user order by age;
+
+explain select id,age,phone from tb_user order by age,phone;
+```
+
+
+
+![image-20221014091703985](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014091703985.png)
+
+![image-20221014091827181](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014091827181.png)
+
+- age倒序,phone倒序
+
+```sql
+explain select id,age,phone from tb_user order by age desc,phone desc;
+```
+
+![image-20221014091925127](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014091925127.png)
+
+此时依旧是user index,但是出现了Backward index scan ,这是因为创建索引时没有选择key的排序方式,因此默认为升序,所以phone降序则采用的反向扫描.
+
+我们可以查看下建立的索引排序规则(A则代表升序)
+
+![image-20221014093320535](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014093320535.png)
+
+- 先对phone进行排序,再对age进行排序
+
+```sql
+explain select id,age,phone from tb_user order by phone,age;
+```
+
+![image-20221014092235538](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014092235538.png)
+
+猜测出现using index的原因是因为他在排序时使用了index,但是这里的索引是以age先排再phone排,这与返回的不同,这里需要借助sort buffer来进行重新排序.另一种解释是说这里采用了覆盖索引,因为id,age,phone,都在idx_user_age_phone里面不用回表查询,但是order没办法使用索引.
+
+- 按照age 升序,phone降序
+
+```sql
+explain select id,age,phone from tb_user order by age asc ,phone desc
+```
+
+![image-20221014093827747](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014093827747.png)
+
+还是会出现sort buffer排序
+
+如果要优化我们可以新建一个索引
+
+```sql
+create index inx_user_age_phone_ad on tb_user(age asc , phone desc);
+```
+
+![image-20221014094020272](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014094020272.png)
+
+再次执行,发现优化成功
+
+![image-20221014094240191](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014094240191.png)
+
+
+
+- 小结
+
+![image-20221014094711460](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014094711460.png)
+
+可以通过以下命令查看缓冲区大小
+
+```sql
+show variables like 'sort_buffer_size';
+```
+
+
+
+#### 2.3.4 group by优化
+
+当表中只有聚集索引时
+
+![image-20221014094951239](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014094951239.png)
+
+```sql
+explain select profession ,count(*) from tb_user froup by profession;
+```
+
+![image-20221014095119695](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014095119695.png)
+
+
+
+现在创建一个索引
+
+```sql
+explain index idx_user_pro_age_sta on tb_user (profession,age,status);
+```
+
+![image-20221014095326931](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014095326931.png)
+
+
+
+若根据age分组
+
+```sql
+explain select age ,count(*) from tb_user group by age;
+```
+
+![image-20221014095524538](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014095524538.png)
+
+这里使用了index是因为,select数据列只用从idx_user_pro_age_sta而不用去回表查看聚集索引.而出现user temporary是因为selectage不包括prodession,在select中加入profession则可以解决
+
+```sql
+explain select profession,age ,count(*) from tb_user group by age;
+```
+
+![image-20221014100447852](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014100447852.png)
+
+现在我们依旧只select age但是我们给他加一个限制条件只选择profession='软件工程的'
+
+```sql
+explain select age ,count(*) from tb_user where profession = '软件工程' group by age;
+```
+
+![image-20221014100712377](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014100712377.png)
+
+发现也满足最左前缀法则
+
+#### 2.3.5 limit优化
+
+一个常见又非常头疼的问题是limit 2000000,10,此时需要mysql排序前2000010条记录,仅仅返回最后10条
+
+,其他记录丢弃,查询代价较大.
+
+优化思路:一般查询分页时,通过创建 覆盖所有能够比较好的提高性能,可以通过覆盖索引加子查询的方式进行优化.
+
+```sql
+explain select t.* from tb_sku t,(select id from tb_sku order by id limit 2000000,10) a where t.id = a.id;
+```
+
+- 不加order
+
+```sql
+-- 较小时耗时短
+explain select * from tb_sku limit 10,10;
+--  较大时耗时猛增
+explain select * from tb_sku limit 1000000,10;
+```
+
+- 加入order字段
+
+```sql
+-- 与上一条语句相比,时间明显下降
+explain select * from tb_sku  order by id limit 1000000,10;
+```
+
+- 子查询
+
+```
+explain select t.* from tb_sku t,(select id from tb_sku order by id limit 2000000,10) a where t.id = a.id;
+```
+
+#### 2.3.6 count优化
+
+```sql
+explain select count(*) from tb_user
+```
+
+- MyISAM 引擎把一个表的总行数存在磁盘上,因此执行count(*)的时候会直接返回这个数,效率高
+- InnoDB引擎较为蛮烦,他只想count(*)时候,需要把数据一行一行读出来,然后累计计数
+
+优化思路:自己计数(redis等)
+
+---
+
+- count用法
+
+![image-20221014104036049](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014104036049.png)
+
+![image-20221014103923224](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014103923224.png)
+
+count字段时,会判断字段是否为null,若为null 则不会计数+1
+
+![image-20221014104207985](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014104207985.png)
+
+![image-20221014104226359](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014104226359.png)
+
+![image-20221014104244757](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014104244757.png)
+
+#### 2.3.7  update优化
+
+https://www.bilibili.com/video/BV1Kr4y1i7ru/?p=95&spm_id_from=pageDriver&vd_source=b592fd0fd3bd041bab6398e89668385d
+
+行锁与表锁
+
+- 行锁情况
+
+现有两个线程(都开启事务),线程1更新id=1的数据,在线程1commit之前线程2更新id=4的数据.(id是有聚集索引的)
+
+```sql
+-- 线程1
+begin; 
+update tb_user set name = 'newName' where id = 1;
+--在线程1提交之前
+-- 线程2 
+begin;
+update tb_user set name = 'newNameT2' where id = 4; --此时为行锁 本次提交不会阻塞
+
+-- 线程1
+commit;
+-- 线程2
+commit;
+
+```
+
+- 表锁情况
+
+现有两个线程(都开启事务),线程1更新name='张三'的数据,在线程1commit之前线程2更新name='李四'的数据.(现在name没有建立索引,会产生表锁)
+
+```sql
+-- 线程1
+begin; 
+update tb_user set name = 'newName' where name = '张三';
+--在线程1提交之前
+-- 线程2 
+begin;
+update tb_user set name = 'newNameT2' name = '李四'; --此时为表锁 本次提交会阻塞
+
+-- 线程1
+commit; -- 知道线程1commit 线程2 的update命令才会执行
+-- 线程2
+commit;
+```
+
+- 解决表锁
+
+现在给name加入索引,此时就不会出现表锁
+
+```sql
+-- 线程1
+begin; 
+update tb_user set name = 'newName' where name = '张三';
+--在线程1提交之前
+-- 线程2 
+begin;
+update tb_user set name = 'newNameT2' name = '李四'; --此时为行锁 本次提交不会阻塞
+
+-- 线程1
+commit;
+-- 线程2
+commit;
+```
+
+![image-20221014105601885](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014105601885.png)
+
+### 2.4 视图
+
+####  2.4.1 介绍
+
+![image-20221014110109059](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014110109059.png)
+
+- 创建
+
+![image-20221014110309154](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014110309154.png)
+
+```sql
+create or replace view tb_user_v1 as select id,name from tb_user where id<=10; 
+```
+
+- 查询
+
+![image-20221014110716089](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014110716089.png)
+
+
+
+- 修改
+
+![image-20221014110742569](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014110742569.png)
+
+```sql
+create or replace view tb_user_v1 as select id,name,phone from tb_user where id<=5;
+
+alter view tb_user_v1 as select id,name,phone from tb_user where id<=5;
+```
+
+- 删除
+
+![image-20221014110758000](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014110758000.png)
+
+```sql
+drop view if exist tb_user_v1
+```
+
+#### 2.4.2 检查选项(cascaded)
+
+现在向tb_user_v1插入一条数据id=5的数据
+
+```sql
+inset into tb_user_v1 values(5,'woldier');
+
+
+inset into tb_user_v1 values(10,'woldier10');
+```
+
+发现插入成功,tb_user_v1与tb_user里面都可以查看到
+
+如果id为10大于5呢?
+
+发现插入成功但是,tb_user_v1中找不到这条数据,这是因为tb_user_v1的建立语句中有where id<= 5;
+
+为了避免插入到了view中但是却在view中不出现,我们可以在建立视图时加入限定
+
+```sql
+create or replace tb_user_v1 as as select id,name,phone from tb_user where id<=5 with cascaded check option;
+```
+
+- cascaded限定
+
+![image-20221014111743698](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014111743698.png)
+
+若设为cascaded不仅会检查当前的限定条件还会检查所依赖视图的限定条件.
+
+- local限定
+
+![image-20221014112325520](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014112325520.png)
+
+local下会递归检查有限定语句的,有限定语句会判定是否满足条件,若没加判定选项则不会检查.
+
+#### 2.4.3 更新及作用
+
+![image-20221014143415417](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014143415417.png)
+
+要使view中的行可以更新,必须让view和表中数据一一对应.
+
+
+
+- 作用
+
+![image-20221014143618973](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014143618973.png)
+
+###  2.5 存储过程
+
+#### 2.5.1 介绍
+
+![image-20221014144238388](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014144238388.png)
+
+
+
+#### 2.5.2 基本语法
+
+- 创建
+
+![image-20221014144508373](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014144508373.png)
+
+```sql
+create procedure p1()
+begin
+	select count(*) from student;
+end;
+```
+
+
+
+- 调用
+
+![image-20221014144531861](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014144531861.png)
+
+```sql
+call p1();
+```
+
+- 查看
+
+![image-20221014145210518](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014145210518.png)
+
+
+
+```sql
+-- 查询指定数据库下的存储过程
+select * from INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA = 'woldierDB' 
+-- 查询某个存储过程的定义
+show create procedure p1();
+```
+
+![image-20221014145625347](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014145625347.png)
+
+![image-20221014145721886](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014145721886.png)
+
+- 删除
+
+```sql
+drop procedure if exists p1;
+```
+
+注意:
+
+![image-20221014150321199](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014150321199.png)
+
+在命令行新建的时候他会认为sql语句的分号为结束符,因此存储过程新增失败
+
+可以通过命令
+
+```sql
+delimiter $$ --指定结束符为$$
+```
+
+之后将原有语句稍作修改即可
+
+```sql
+create procedure p1()
+begin
+	select count(*) from student;
+end$$
+```
+
+#### 2.5.3 变量
+
+#####  2.5.3.1 系统变量
+
+show后面没指定session还是global的话默认为session
+
+![image-20221014150914175](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014150914175.png)
+
+```sql
+select @@session.autocommit;
+select @@global.autocommit;
+
+set session autocommit = 0;
+
+```
 
 
 
 
-#### 2.3.3
 
-#### 2.3.4 
+##### 2.5.3.2 用户自定义变量
 
-#### 2.3.5 
+![image-20221014151551590](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014151551590.png)
 
-#### 2.3.6 
+```sql
+-- 插入
+set @name = 'woldier';
+set @age := 18;
+select @gender:= '男',@hobby:='java';
+select age into @u_age from tb_user where name = '嬴政';
 
-#### 2.3.7  
+-- 查看
+select @name;
+select @age;
+SELECT @gender,@hobby;
+
+-- 使用变量
+SELECT * from tb_user WHERE id =@age;
+
+
+```
+
+
+
+
+
+##### 2.5.3.3 局部变量
+
+![image-20221014152442351](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014152442351.png)
+
+![image-20221014152459464](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014152459464.png)
+
+```sql
+create procedure p2()
+begin
+	declare temp_x int default 0;
+	select count(*) into  temp_x from tb_user;
+	select temp_x;
+end;
+
+
+-- 调用
+call p2;
+```
+
+#### 2.5.4 if判断
+
+![image-20221014153645024](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014153645024.png)
+
+
+
+- 练习
+
+![image-20221014153715394](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014153715394.png)
+
+```sql
+create procedure p3()
+begin 
+	declare score int default 58;
+	declare result varchar(10);
+	if score >= 85 then 
+		set result = '优秀';
+	elseif score >= 60 then 
+		set result = '及格';
+	else 
+		set result = '不及格'; 
+	end if;
+	select result;
+end;
+```
+
+#### 2.5.5 参数
+
+![image-20221014155249425](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014155249425.png)
+
+ ```sql
+create procedure p4(in score int,out result varchar(10))
+begin 
+	if score >= 85 then 
+		set result = '优秀';
+	elseif score >= 60 then 
+		set result = '及格';
+	else 
+		set result = '不及格'; 
+	end if;
+end;
+
+-- 
+call p4(68,@res);
+select @res;
+
+
+-- 将传入的200分制的分数换算成百分制,然后返回
+
+create procedure p5(inout score double)
+begin
+	set score = score * 0.5;
+end;
+
+-- 
+set @score = 75;
+call p5(@score);
+select @score;
+ ```
+
+#### 2.5.6 case
+
+![image-20221014160305861](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014160305861.png)
+
+![image-20221014160351759](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014160351759.png)
+
+```sql
+create procedure p6(in m int ,out res varchar(10))
+begin
+	case
+		when m>=1 and m<4 then 
+			set res = '第一季度';
+		when m>=4 and m<7 then 
+			set res = '第二季度';
+		when m>=7 and m<10 then 
+			set res = '第三季度';
+		when m>=10 and m<13 then 
+			set res = '第四季度';
+		esle 
+			set res = '非法参数';
+		end case;
+end;
+
+call p6(11,@res);
+select @res;
+```
+
+
+
+#### 2.5.7  循环
+
+- while
+
+![image-20221014161952926](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014161952926.png)
+
+```sql
+-- 计算从1累加到n的值
+create procedure p7(in n int,out res int)
+begin 
+	declare i int default 1;
+	declare sum int default 0;
+	while  i < n do
+		set sum = sum + i;
+		set i = i + 1 ;
+	end while;
+	set res = sum;
+end;
+
+-- 
+call p7(50,@res);
+
+select @res;
+```
+
+- repeat
+
+![image-20221014162721138](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014162721138.png)
+
+```sql
+-- 计算从1累加到n的值
+create procedure p8(in n int,out res int)
+begin 
+	declare i int default 1;
+	declare sum int default 0;
+	repeat 
+		set sum =sum + i;
+		set i = i+1;
+		until n=i
+	end repeat;
+	set res = sum;
+end;
+
+-- 
+call p8(50,@res);
+
+select @res;
+
+```
+
+- loop
+
+![image-20221014163154381](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014163154381.png)
+
+![image-20221014163216660](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014163216660.png)
+
+![image-20221014163230920](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014163230920.png)
+
+![image-20221014163540787](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014163540787.png)
+
+累加0-n的偶数
+
+![image-20221014163706862](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014163706862.png)
+
+#### 2.5.8 游标cursor
+
+![image-20221014191310147](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014191310147.png)
+
+返回表会报错
+
+![image-20221014191340770](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014191340770.png)
+
+![image-20221014191359153](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014191359153.png)
+
+- 获取游标记录
+
+```sql
+FETCH 游标名称 INTO 变量 [,变量]
+```
+
+![image-20221014191416603](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014191416603.png)
+
+
+
+- 案例
+
+![image-20221014191442702](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014191442702.png)
+
+```sql
+create procedure p11(in age int)
+begin
+
+	declare uname varchar(100);
+	declare upro varchar(100);
+	-- 游标声明必须在 变量声明之后
+	declare u_cursor cursor for select name,profession from tb_user  where age <= age;
+	
+	
+	
+	
+	drop table if exists tb_user_pro;
+	create table in not exists tb_user_pro(
+    	id int primary key auto_increment,
+        name varchar(100),
+        profession varchar(100)
+    );
+    
+    -- 开启游标
+    open u_cursor;
+    
+    while true do
+    	fetch u_cursor into uanme,upro;
+    	insert into tb_user_pro values (null,uname,upro);
+    end while;
+    
+    -- 关闭游标
+    close u_cursor;
+
+end;
+```
+
+
+
+上面这个procedure会新建一张table,并且也会将数据插入这张表,但是会出现报错:
+
+no row to fetch
+
+这是因为while没有结束循环.
+
+
+
+
+
+#### 2.5.9 条件处理程序
+
+  条件处理程序(Handler)可以用来定义在流程控制结构执行过程中遇到问题时相应的处理步骤.具体语法为:
+
+![image-20221014193327242](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014193327242.png)
+
+```sql
+create procedure p11(in age int)
+begin
+
+	declare uname varchar(100);
+	declare upro varchar(100);
+	-- 游标声明必须在 变量声明之后
+	declare u_cursor cursor for select name,profession from tb_user  where age <= age;
+	-- 
+	declare exit handler for SQLSTATE '02000' close u_cursor
+	-- 具体的错误代码也可用替代代码简写
+	declare exit handler for NOT FOUND close u_cursor
+	
+	
+	
+	drop table if exists tb_user_pro;
+	create table in not exists tb_user_pro(
+    	id int primary key auto_increment,
+        name varchar(100),
+        profession varchar(100)
+    );
+    
+    -- 开启游标
+    open u_cursor;
+    
+    while true do
+    	fetch u_cursor into uanme,upro;
+    	insert into tb_user_pro values (null,uname,upro);
+    end while;
+    
+    -- 关闭游标
+    close u_cursor;
+
+end;
+```
+
+
+
+### 2.6 存储函数
+
+![image-20221014194039349](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014194039349.png)
+
+```sql
+-- 存储函数
+
+-- 从1累加到n
+create function fun1(n int)
+returns int
+begin
+
+	declare total int default 0;
+	
+	while n>=0 do
+		set total = total + n;
+		set n = n - 1;
+	end while;
+
+
+	return total;
+end;
+
+```
+
+![image-20221014194552270](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014194552270.png)
+
+以上产生错误,提示我们必须要指定charecteristic
+
+```sql
+-- 存储函数
+
+-- 从1累加到n
+create function fun1(n int)
+returns int deterministic
+begin
+
+	declare total int default 0;
+	
+	while n>=0 do
+		set total = total + n;
+		set n = n - 1;
+	end while;
+
+
+	return total;
+end;
+
+--
+select fun1(100) 
+
+```
+
+###  2.7 触发器
+
+- 介绍
+
+![image-20221014195219419](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014195219419.png)
+
+- 语法
+
+![image-20221014195357586](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014195357586.png)
+
+练习:
+
+![image-20221014195932383](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014195932383.png)
+
+```sql
+-- 准备工作
+create table user_logs(
+  id int(11) not null auto_increment,
+  operation varchar(20) not null comment '操作类型, insert/update/delete',
+  operate_time datetime not null comment '操作时间',
+  operate_id int(11) not null comment '操作的ID',
+  operate_params varchar(500) comment '操作参数',
+  primary key(`id`)
+)engine=innodb default charset=utf8;
+
+
+-- 插入触发器
+create trigger tb_user_insert_trigger
+after insert 
+on tb_user for each row 
+begin 
+	insert into user_logs (id,operation,operate_time,operate_id,operate_params) 
+		values (null,'insert',now(),new.id,concat('inset :','name=',new.name,',phone=',new.phone,',profession=',new.profession,',email=',new.email));
+end; 
+
+
+-- 查看触发器
+show TRIGGERS;
+
+-- 删除
+drop trigger tb_user_insert_trigger
+
+-- 插入数据到tb_user观察user_logs是否发生变化
+
+
+insert into tb_user(id, name, phone, email, profession, age, gender, status, createtime)
+VALUES (25,'二皇子','18809091212','erhuangzi@163.com','软件工程',23,'1','1',now());
+
+
+
+```
+
+![image-20221014201621263](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014201621263.png)
+
+```sql
+-- 插入update触发器
+
+create trigger tb_user_update_trigger
+after update 
+on tb_user for each row 
+begin 
+	insert into user_logs (id,operation,operate_time,operate_id,operate_params) 
+		values (null,'update',now(),new.id,concat('update:','name=',new.name,',phone=',new.phone,',profession=',new.profession,',email=',new.email,',name=',old.name,',phone=',old.phone,',profession=',old.profession,',email=',old.email
+							
+		));
+end; 
+
+-- 
+update tb_user set age = 32 where id = 23;
+```
+
+![image-20221014202202734](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014202202734.png)
+
+```sql
+create trigger tb_user_delete_trigger
+after delete 
+on tb_user for each row 
+begin 
+	insert into user_logs (id,operation,operate_time,operate_id,operate_params) 
+		values (null,'insert',now(),old.id,concat('inset :','name=',old.name,',phone=',old.phone,',profession=',old.profession,',email=',old.email));
+end; 
+
+delete from tb_user where id = 25;
+```
+
+![image-20221014202550031](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014202550031.png)
+
+### 2.8 锁
+
+![image-20221014204931816](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014204931816.png)
+
+
+
+![image-20221014205020661](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014205020661.png)
