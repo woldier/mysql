@@ -2266,6 +2266,857 @@ delete from tb_user where id = 25;
 
 ![image-20221014204931816](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014204931816.png)
 
-
+####  2.8.1 全局锁 
 
 ![image-20221014205020661](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221014205020661.png)
+
+![image-20221015095533751](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015095533751.png)
+
+加锁之后 
+
+![image-20221015095632996](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015095632996.png)
+
+
+
+![image-20221015095745875](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015095745875.png)
+
+- 演示
+
+```sql
+-- 线程1 加锁
+flush tables with read lock;
+
+-- 线程2 执行DQL和DML
+select * from tb_user; --可以执行
+
+update tb_user set name = 'woldier' where id = 5; -- 由于线程一加锁,这是DML阻塞
+
+
+
+
+```
+
+```shell
+#线程3 验证其他非执行加锁命令的线程是否可以备份
+mysqldump -h localhost - u root - p 123 db01 > /etc/db01.sql;
+```
+
+
+
+![image-20221015100729581](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015100729581.png)
+
+
+
+```shell
+mysqldump --single-transaction -h localhost - u root - p 123 db01 > /etc/db01.sql;
+```
+
+#### 2.8.2 表级锁
+
+![image-20221015101005327](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015101005327.png)
+
+- 表锁
+
+对于表锁,分为两类:
+
+![image-20221015101032577](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015101032577.png)
+
+语法:
+
+![image-20221015101058346](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015101058346.png)
+
+- 表共享读锁
+
+![image-20221015101222575](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015101222575.png)
+
+我们现在锁住一张名为score的表
+
+```sql
+--线程1
+LOCK TABLES score READ;
+
+select * from score; -- 读取可用
+
+update score set math = 100 whree id = 1; -- 更新会报错
+
+--线程2 
+update score set math = 100 whree id = 1; -- 更新会阻塞,当线程1unlock后操作会成功
+
+-- 线程1
+unlock tables;
+
+```
+
+- 表独占写锁
+
+![image-20221015102232514](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015102232514.png)加锁线程可读写,其他线程不可读写
+
+```sql
+-- 线程1 
+lock tables score write;
+
+select * from score; -- 读取可用
+
+update score set math = 100 whree id = 1; -- 写可用
+
+--线程2 
+select * from score; -- 会阻塞,当线程1unlock后操作会成功
+update score set math = 100 whree id = 1; -- 更新会阻塞,当线程1unlock后操作会成功
+
+-- 线程1
+unlock tables;
+
+```
+
+
+
+#### 2.8.3 表级锁-元数据锁
+
+ ![image-20221015102718752](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015102718752.png)
+
+https://www.bilibili.com/video/BV1Kr4y1i7ru/?p=125&vd_source=b592fd0fd3bd041bab6398e89668385d
+
+
+
+
+
+
+
+#### 2.8.4 表级锁-意向锁
+
+![image-20221015103749339](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015103749339.png)
+
+https://www.bilibili.com/video/BV1Kr4y1i7ru/?p=126&spm_id_from=pageDriver&vd_source=b592fd0fd3bd041bab6398e89668385d
+
+![image-20221015103859727](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015103859727.png)
+
+
+
+![image-20221015103941992](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015103941992.png)
+
+
+
+
+
+
+
+#### 2.8.5 行级锁
+
+![image-20221015104639848](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015104639848.png)
+
+
+
+![image-20221015104650726](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015104650726.png)
+
+![image-20221015104659604](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015104659604.png)
+
+
+
+![image-20221015104710346](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015104710346.png)
+
+![image-20221015104758678](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015104758678.png)
+
+
+
+![image-20221015104826435](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015104826435.png)
+
+- 行锁
+
+
+
+https://www.bilibili.com/video/BV1Kr4y1i7ru/?p=129&spm_id_from=pageDriver&vd_source=b592fd0fd3bd041bab6398e89668385d
+
+![image-20221015105008899](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015105008899.png)
+
+![image-20221015105055103](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015105055103.png)
+
+演示:
+
+![image-20221015105133549](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015105133549.png)
+
+![image-20221015105453720](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015105453720.png)
+
+- 间隙锁/临键锁
+
+![image-20221015110032230](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015110032230.png)
+
+###  2.9 InnoDB引擎
+
+ 
+
+####  2.9.1 逻辑存储结构
+
+![image-20221015111454704](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015111454704.png)
+
+
+
+####  2.9.2 架构
+
+- 内存架构
+
+![image-20221015111724994](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015111724994.png)
+
+![image-20221015111913660](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015111913660.png)
+
+
+
+![image-20221015112101100](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015112101100.png)
+
+![image-20221015112240089](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015112240089.png)
+
+- 磁盘结构
+
+![image-20221015112500649](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015112500649.png)
+
+![image-20221015112646705](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015112646705.png)
+
+```sql
+create tablespace ts_woldier add datafile 'woldierDB.idb' engine = innodb;
+
+create table tb_a (id int  primary key auto_increment ,name varchar(10)) engine = innodb tablespace ts_woldier;
+```
+
+
+
+![image-20221015113004523](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015113004523.png)
+
+![image-20221015113104331](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015113104331.png)
+
+![image-20221015113124045](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015113124045.png)
+
+- 后台线程
+
+![image-20221015121233196](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015121233196.png)
+
+![image-20221015121335073](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015121335073.png)
+
+#### 2.9.3 事务原理
+
+![image-20221015121939984](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015121939984.png)
+
+![image-20221015153105721](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015153105721.png)
+
+#### 2.9.4 MVCC
+
+![image-20221015153559946](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015153559946.png)
+
+![image-20221015153614460](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015153614460.png)
+
+![image-20221015153747617](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015153747617.png)
+
+###  2.10 mysql管理
+
+  ####  2.10.1 系统数据库
+
+
+
+![image-20221015160223851](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015160223851.png)
+
+
+
+
+
+
+
+
+
+#### 2.10.2 常用命令工具
+
+![image-20221015160311679](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015160311679.png)
+
+
+
+- mysqladmin
+
+![image-20221015160437120](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015160437120.png)
+
+- mysqlbinlog
+
+![image-20221015160741258](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015160741258.png)
+
+- mysqlshow
+
+![image-20221015160956971](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015160956971.png)
+
+- mysqldump
+
+![image-20221015161143155](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015161143155.png)
+
+- mysqlimport
+
+![image-20221015161415002](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015161415002.png)
+
+## 3. 运维
+
+###  3.1 日志
+
+-  错误日志
+
+对于docker里面的log日志,由于容器中mysql其没有对`/logs`的写权限,所以为stderr,我们要做的时进入容器,然后把`/logs`设置为`chmod 777 /logs`
+
+还可以通过docker命令查看
+
+```shell
+docker logs c_mysql
+```
+
+
+
+- 二进制日志
+
+![image-20221015170710805](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015170710805.png)
+
+![image-20221015172328952](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015172328952.png)
+
+![image-20221015172410265](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015172410265.png)
+
+```shell
+mysqlbinlog binlog.000008;
+```
+
+![image-20221015172919641](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015172919641.png)
+
+```sql
+
+purge master logs to 'binlog.000008'
+```
+
+![image-20221015173119714](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015173119714.png)
+
+
+
+- 查询日志
+
+![image-20221015173236003](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015173236003.png)
+
+![image-20221015173315019](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015173315019.png)
+
+```properties
+#设置开启查询日志
+general_log=1
+#设置日志文件名,若没有设置默认为host_name.log
+general_log_file=/logs/mysql_query.log
+
+```
+
+
+
+
+
+- 慢查询日志
+
+![image-20221015201807409](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015201807409.png)
+
+```properties
+# 慢查询日志开启
+slow_query_log = 1
+# 慢查询记录阈值
+long_query_time = 2
+```
+
+### 3.2 主从复制
+
+![image-20221015204514376](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015204514376.png)
+
+原理:
+
+![image-20221015204747433](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015204747433.png)
+
+搭建:
+
+- linux搭建
+
+https://www.bilibili.com/video/BV1Kr4y1i7ru/?p=160&spm_id_from=pageDriver&vd_source=b592fd0fd3bd041bab6398e89668385d
+
+- 基于docker
+
+```shell
+# 创建mysql 主从容器
+docker run -id \
+-p 3301:3306 \
+--name=c_mysql_master \
+-v /export/docker/mysql-master/conf.d:/etc/mysql/conf.d \
+-v /export/docker/mysql-master/logs:/logs \
+-v /export/docker/mysql-master/data:/var/lib/mysql \
+-e MYSQL_ROOT_PASSWORD=123456 \
+mysql:8.0.26
+
+
+docker run -id \
+-p 3302:3306 \
+--link=c_mysql_master \
+--name=c_mysql_slave \
+-v /export/docker/mysql-slave/conf.d:/etc/mysql/conf.d \
+-v /export/docker/mysql-slave/logs:/logs \
+-v /export/docker/mysql-slave/data:/var/lib/mysql \
+-e MYSQL_ROOT_PASSWORD=123456 \
+mysql:8.0.26
+```
+
+在从库中设置link可以得到主库ip映射
+
+![image-20221015215835000](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015215835000.png)
+
+主库配置:
+
+1. 在加载目录`/export/docker/mysql-master/conf.d`创建`my.cnf`文件
+
+```text
+[mysqld]
+#服务id,保证整个集群环境唯一,取值范围1 - 2^32-1,默认为1
+server-id=1
+#是否只读
+read-only=0
+#忽略的数据,指不需要同步的数据库
+#binlog-ignore-db=mysql
+#指定同步的数据库
+#binlog-do-db=db1
+#错误日志记录
+log-error=/logs/log_error.log
+#pid-file=/var/run/mariadb/mariadb.pid
+#设置开启查询日志
+#general_log=1
+##设置日志文件名,若没有设置默认为host_name.log
+#general_log_file=/logs/mysql_query.log
+```
+
+2. 重启 `docker restart c_mysql_master`
+3. 通过`docker logs c_mysql_master`查看有没有报错,有报错说明配置出了问题.(也可以查看挂载的logs目录下出现`log_error.log`文件)
+
+4. 登录mysql,创建远程连接的账号,并且授予主从复制权限
+
+```shell
+docker exec -it c_mysql_master bash
+
+mysql -uroot -p123456
+```
+
+```sql
+create user 'woldier'@'%' identified with mysql_native_password by 'Root@123456';
+
+-- 为'woldier'@'%'用户分配主从复制权限
+grant replication slave on *.* to 'woldier'@'%';
+```
+
+5. 通过指令,查看二进制日志坐标
+
+```sql
+show master status;
+```
+
+![image-20221015212923893](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015212923893.png)
+
+
+
+
+
+从库配置:
+
+1. 在加载目录`/export/docker/mysql-slave/conf.d`创建`my.cnf`文件
+
+```text
+[mysqld]
+#服务id,保证整个集群环境唯一,取值范围1 - 2^32-1,默认为1
+server-id=2
+#是否只读
+read-only=1
+#忽略的数据,指不需要同步的数据库
+#binlog-ignore-db=mysql
+#指定同步的数据库
+#binlog-do-db=db1
+#错误日志记录
+log-error=/logs/log_error.log
+#pid-file=/var/run/mariadb/mariadb.pid
+#设置开启查询日志
+#general_log=1
+##设置日志文件名,若没有设置默认为host_name.log
+#general_log_file=/logs/mysql_query.log
+
+```
+
+2. 重启docker
+
+```shell
+docker restart c_mysql_slave
+```
+
+3. 检查是否配置成功,同上
+4. 登录mysql,配置从库
+
+```shell
+docker exec -it c_mysql_slave bash
+
+mysql -uroot -p123456
+```
+
+```sql
+-- 为从库设置主库信息 8.0.23语法
+-- 虽然master有端游映射3301/3306 但是这是一个docker里面的两个镜像,我们不会通过宿主机进行交互,所以这里的端口为3306	
+change replication source to source_host='c_mysql_master',source_port=3306,source_user='woldier',source_password='Root@123456',source_log_file='binlog.000004',source_log_pos=665;
+
+start replica; --开启slave
+
+-- 8.0.23以前
+
+change master to master_host='172.17.0.2',master_port=3306,master_user='woldier',master_password='Root@123456',master_log_file='binlog.000004',master_log_pos=665;
+
+start slave; --开启slave
+```
+
+5. 查看主从同步状态
+
+```sql
+show replica status;
+show replica status\G;
+-- 8.0.23以前
+show slave status;
+```
+
+![image-20221015221421371](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015221421371.png)0
+
+- 另若slave同步前主库存在数据,可以先将主库sql导出到从库上,保证数据一直,再进行同步.
+
+### 3.3 分库分表
+
+![image-20221015222237537](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015222237537.png)
+
+- 拆分策略
+
+![image-20221015222503044](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015222503044.png)
+
+![image-20221015222701332](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015222701332.png)
+
+ ![image-20221015222845695](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015222845695.png)
+
+![image-20221015223017122](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221015223017122.png)
+
+###  3.4 mycat
+
+####  3.4.1 概述
+
+![image-20221016090345962](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016090345962.png)
+
+
+
+
+
+
+
+#### 3.4.2 mycat安装(docker)
+
+- 简介
+
+![image-20221016095323837](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016095323837.png)
+
+![image-20221016095459951](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016095459951.png)
+
+- 安装
+
+```dockerfile
+FROM java:8
+MAINTAINER woldier
+ADD Mycat-server-1.6.7.3-release-20210913163959-linux.tar.gz /usr/local/
+VOLUME /user/local/mycat/conf
+VOLUME /user/local/mycat/lib
+EXPOSE 8066 9066
+ENV MYCAT_HOME=/usr/local/mycat
+CMD /bin/bash
+```
+
+```shell
+ 
+ docker build -f ./dockerfile -t mycat:1.0 .
+ 
+ 
+ docker run -it --name mycat \
+ 		 -p 8066:8066 -p 9066:9066 \
+ 		  mycat:1.0
+		
+```
+
+
+
+下载地址:
+
+http://www.mycat.org.cn/mycat1.html
+
+![image-20221016092227455](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016092227455.png)
+
+其中lib里面的包是`mysql-connector-java-5.1.35.jar`,要替换为自己mysql对应的connector(并且修改权限777).
+
+ ![image-20221016113507940](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016113507940.png)
+
+![image-20221016113526764](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016113526764.png)
+
+- 配置
+
+![image-20221016114016475](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016114016475.png)
+
+三个mysql服务器已经准备完成.现在分别为他们三个创建一个名为db01的数据库.
+
+现在在三个容器中都创建名为db00的数据库
+
+```shell
+docker exec -it c_mysql_3311 bash
+mysql -uroot -p123456
+create database db00;
+```
+
+![image-20221016153236528](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016153236528.png)
+
+```xml
+<?xml version="1.0"?>
+<!DOCTYPE mycat:schema SYSTEM "schema.dtd">
+<mycat:schema xmlns:mycat="http://io.mycat/">
+
+	<schema name="DB01" checkSQLschema="true" sqlMaxLimit="100">
+		<table name="TB_ORDER" dataNode="dn1,dn2,dn3" rule="auto-sharding-long" />
+	</schema>
+	
+	<dataNode name="dn1" dataHost="dhost1" database="db00" />
+	<dataNode name="dn2" dataHost="dhost2" database="db00" />
+	<dataNode name="dn3" dataHost="dhost3" database="db00" />
+	
+	<dataHost name="dhost1" maxCon="1000" minCon="10" balance="0"
+			  writeType="0" dbType="mysql" dbDriver="jdbc" switchType="1"  slaveThreshold="100">
+		<heartbeat>select user()</heartbeat>
+		<writeHost host="hostS1" url="localhost:3311?useSSL=false&amp;serverTimezone=Asia/Shanghai&amp;characterEncoding=utf-8" user="root"
+ password="123456" />
+	</dataHost>
+
+	<dataHost name="dhost2" maxCon="1000" minCon="10" balance="0"
+			  writeType="0" dbType="mysql" dbDriver="jdbc" switchType="1"  slaveThreshold="100">
+		<heartbeat>select user()</heartbeat>
+		<writeHost host="hostS1" url="localhost:3312?useSSL=false&amp;serverTimezone=Asia/Shanghai&amp;characterEncoding=utf-8" user="root"
+ password="123456" />
+	</dataHost>
+
+	<dataHost name="dhost3" maxCon="1000" minCon="10" balance="0"
+			  writeType="0" dbType="mysql" dbDriver="jdbc" switchType="1"  slaveThreshold="100">
+		<heartbeat>select user()</heartbeat>
+		<writeHost host="hostS1" url="localhost:3313?useSSL=false&amp;serverTimezone=Asia/Shanghai&amp;characterEncoding=utf-8" user="root"
+ password="123456" />
+	</dataHost>
+
+
+</mycat:schema>
+```
+
+
+
+
+
+![image-20221016154234308](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016154234308.png)
+
+```xml
+
+	<user name="root" defaultAccount="true">
+		<property name="password">123456</property>
+		<property name="schemas">DB01</property>
+		
+		<!-- 表级 DML 权限设置 -->
+		<!-- 		
+		<privileges check="false">
+			<schema name="TESTDB" dml="0110" >
+				<table name="tb01" dml="0000"></table>
+				<table name="tb02" dml="1111"></table>
+			</schema>
+		</privileges>		
+		 -->
+	</user>
+
+	<user name="user">
+		<property name="password">123456</property>
+		<property name="schemas">DB01</property>
+		<property name="readOnly">true</property>
+	</user>
+
+```
+
+
+
+- 启动
+
+```shell
+bin/mycat start
+
+bin/mycat stop
+```
+
+#### 3.4.3 垂直拆分
+
+![image-20221016155849884](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016155849884.png)
+
+首先在三个数据库中创建shopping数据库
+
+![image-20221016160005074](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016160005074.png)
+
+![image-20221016160105252](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016160105252.png)
+
+修改server.xml
+
+![image-20221016160305609](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016160305609.png)
+
+重启mycat服务
+
+登录mysql
+
+
+
+![image-20221016160436301](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016160436301.png)
+
+可以查看到逻辑库,逻辑表,但是这并不是真正存在的,我们需要将他们在mysql节点中创建出
+
+![image-20221016160651486](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016160651486.png)
+
+
+
+![image-20221016161113016](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016161113016.png)
+
+报错,因为查询的信息分布在两个不同数据库中.
+
+
+
+![image-20221016161054095](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016161054095.png)
+
+注意:需要删除数据重新建表
+
+#### 3.4.4 水平拆分
+
+![image-20221016161607781](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016161607781.png)
+
+![image-20221016161720359](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016161720359.png)
+
+
+
+![image-20221016162135052](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016162135052.png)
+
+
+
+#### 3.4.5 分片规则
+
+- 范围
+
+![image-20221016162431892](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016162431892.png)
+
+
+
+![image-20221016162456959](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016162456959.png)
+
+- 取模
+
+![image-20221016162617428](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016162617428.png)
+
+![image-20221016162632455](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016162632455.png)
+
+- 一致性hash
+
+![image-20221016170354523](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016170354523.png)
+
+![image-20221016170405219](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016170405219.png)
+
+- 枚举
+
+![image-20221016170704086](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016170704086.png)
+
+![image-20221016170744667](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016170744667.png)
+
+- 应用指定
+
+
+
+![image-20221016171434127](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016171434127.png)
+
+- 固定分片hash
+
+![image-20221016171654371](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016171654371.png)
+
+![image-20221016171808667](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016171808667.png)
+
+![image-20221016171907834](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016171907834.png)
+
+- 字符串hash解析
+
+![image-20221016172449129](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016172449129.png)
+
+
+
+![image-20221016172500969](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016172500969.png)
+
+partitionLength代表分片长度 ,partitionCount代表分片个数,hashSlice带面截取的hash片段
+
+![image-20221016173043007](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016173043007.png)
+
+- 按天分片
+
+![image-20221016173439214](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016173439214.png)
+
+![image-20221016173450422](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016173450422.png)
+
+![image-20221016173555690](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016173555690.png)
+
+- 按自然月分片
+
+![image-20221016173703105](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016173703105.png)
+
+![image-20221016173713580](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016173713580.png)
+
+![image-20221016173745006](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016173745006.png)
+
+
+
+#### 3.4.6 mycat管理与监控
+
+- mycat原理
+
+![image-20221016174021612](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016174021612.png)
+
+![image-20221016174138678](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016174138678.png)
+
+![image-20221016174227054](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016174227054.png)
+
+- mycat管理
+
+![image-20221016193247638](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016193247638.png)
+
+- mycat-eye
+
+![image-20221016193323757](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016193323757.png)
+
+### 3.5 读写分离
+
+![image-20221016194501664](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016194501664.png)
+
+- 一主一从
+
+主从搭建,前面已经介绍
+
+现在我们通过mycat实现读写分离
+
+![image-20221016195136569](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016195136569.png)
+
+![image-20221016195316741](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016195316741.png)
+
+- 双主双从
+
+![image-20221016200324370](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016200324370.png)
+
+![image-20221016200537626](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016200537626.png)
+
+![image-20221016200819435](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016200819435.png)
+
+
+
+![image-20221016200905735](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016200905735.png)
+
+![image-20221016201041197](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016201041197.png)
+
+![image-20221016201103062](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016201103062.png)
+
+![image-20221016201135168](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016201135168.png)
+
+![image-20221016201358557](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016201358557.png)
+
+![image-20221016201728759](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016201728759.png)
+
+![image-20221016201906903](https://woldier-pic-repo-1309997478.cos.ap-chengdu.myqcloud.com/image-20221016201906903.png)
